@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic-settings
+slack-sdk
+openai
+PyGithub
+jira 
