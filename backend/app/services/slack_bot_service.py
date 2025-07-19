@@ -89,8 +89,10 @@ def respond_to_mention(channel_id: str, user_id: str, text: str) -> str:
         elif "help" in text_lower:
             return """🤖 *SprintLens Bot Commands:*
 • `@SprintLens summary` - Generate a summary of recent activity
+• `@SprintLens weekly` - Post a comprehensive weekly summary to the channel
+• `@SprintLens status` - Get current project status
 • `@SprintLens help` - Show this help message
-• `@SprintLens weekly` - Post a comprehensive weekly summary to the channel"""
+• `@SprintLens remind` - Set a reminder for the team"""
         
         elif "weekly" in text_lower:
             # Post weekly summary to channel
@@ -100,12 +102,57 @@ def respond_to_mention(channel_id: str, user_id: str, text: str) -> str:
             else:
                 return "❌ Failed to post weekly summary. Please try again."
         
+        elif "status" in text_lower:
+            return get_project_status(channel_id)
+        
+        elif "remind" in text_lower:
+            return "🔔 *Reminder feature coming soon!* I'll help you set team reminders and track important deadlines."
+        
         else:
             return f"Hi <@{user_id}>! I'm SprintLens, your AI teammate. Type `@SprintLens help` to see what I can do."
             
     except Exception as e:
         print(f"Error responding to mention: {e}")
         return "❌ Sorry, I encountered an error. Please try again."
+
+def get_project_status(channel_id: str) -> str:
+    """
+    Get current project status from various sources.
+    
+    Args:
+        channel_id: Slack channel ID
+    
+    Returns:
+        Status message
+    """
+    try:
+        status_parts = []
+        
+        # Get GitHub status
+        if settings.GITHUB_TOKEN and settings.GITHUB_REPO:
+            github_data = get_repository_data(7)
+            if github_data and "error" not in github_data:
+                status_parts.append(f"📊 *GitHub Activity (7 days):*")
+                if github_data.get("commits"):
+                    status_parts.append(f"• {len(github_data['commits'])} commits")
+                if github_data.get("pull_requests"):
+                    status_parts.append(f"• {len(github_data['pull_requests'])} pull requests")
+                if github_data.get("issues"):
+                    status_parts.append(f"• {len(github_data['issues'])} issues")
+        
+        # Get Slack activity
+        messages = fetch_channel_messages(channel_id, 7)
+        if messages:
+            status_parts.append(f"💬 *Slack Activity:* {len(messages)} messages in the last 7 days")
+        
+        if status_parts:
+            return "\n".join(status_parts)
+        else:
+            return "📊 *Project Status:* No recent activity found."
+            
+    except Exception as e:
+        print(f"Error getting project status: {e}")
+        return "❌ Error retrieving project status."
 
 def post_status_update(channel_id: str, status: str, details: str = "") -> bool:
     """

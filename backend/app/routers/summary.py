@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.services.slack_service import fetch_channel_messages
 from app.services.github_service import get_repository_data
 from app.services.jira_service import get_project_issues, get_sprints
+from app.services.calendar_service import get_calendar_events, get_busy_times
 from app.services.ai_service import generate_summary
 
 router = APIRouter()
@@ -12,6 +13,7 @@ class SummaryRequest(BaseModel):
     days: int = 7
     include_github: bool = False
     include_jira: bool = False
+    include_calendar: bool = False
     jira_project_key: str | None = None
 
 @router.post("/generate")
@@ -25,6 +27,7 @@ async def generate_sprint_summary(request: SummaryRequest):
         
         github_data = None
         jira_data = None
+        calendar_data = None
         
         # Fetch GitHub data if requested
         if request.include_github:
@@ -39,11 +42,31 @@ async def generate_sprint_summary(request: SummaryRequest):
                 "sprints": jira_sprints
             }
         
-        if not messages and not github_data and not jira_data:
+        # Fetch Calendar data if requested
+        if request.include_calendar:
+            try:
+                calendar_events = get_calendar_events(request.days)
+                calendar_busy = get_busy_times(request.days)
+                calendar_data = {
+                    "events": calendar_events,
+                    "busy_times": calendar_busy
+                }
+            except Exception as e:
+                print(f"Calendar error: {e}")
+                calendar_data = {
+                    "events": [],
+                    "busy_times": []
+                }
+        
+        if not messages and not github_data and not jira_data and not calendar_data:
             return {"summary": "No data found for the specified time period."}
         
+        # If no Slack messages but we have other data, still generate summary
+        if not messages and (github_data or jira_data or calendar_data):
+            messages = []  # Empty list but continue with other data
+        
         # Generate comprehensive AI summary
-        summary = generate_summary(messages, github_data, jira_data)
+        summary = generate_summary(messages, github_data, jira_data, calendar_data)
         
         return {"summary": summary}
         
